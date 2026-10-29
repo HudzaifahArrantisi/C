@@ -1,0 +1,21 @@
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Author / internal challenge generator & solver scripts
+**/generate.py
+**/solve.py
+**/SOLVE.md
+solve.py
+generate.py
+SOLVE.md
+
+# Binwalk extraction directories & temporary cracking artifacts
+*_extracted/
+*extracted/
+*.hash
+hash.txt
+hash_cat.txt
+zip.hash

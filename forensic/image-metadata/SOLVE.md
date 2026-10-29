@@ -3,11 +3,11 @@
 ## Analisis Masalah
 
 Tantangan ini menggabungkan teknik **File Carving** dengan **Password Cracking**:
-1. Sebuah arsip ZIP disembunyikan di akhir file PNG (`evidence.png`).
+1. Sebuah berkas arsip ZIP disembunyikan pada *trailing bytes* di akhir file PNG (`evidence.png`).
 2. Arsip ZIP tersebut memuat 2 file:
-   - `passwords.txt`: Daftar 1000 kemungkinan kata sandi (tidak berpassword / plaintext).
+   - `passwords.txt`: Daftar 1000 kemungkinan kata sandi (disimpan tanpa enkripsi/plaintext).
    - `flag.txt`: Dokumen rahasia terenkripsi ZipCrypto.
-3. Peserta harus mengekstrak hash dari file ZIP lalu melakukan *dictionary attack* menggunakan tool seperti **Hashcat** atau **John the Ripper** dengan kamus `passwords.txt`.
+3. Saat peserta mengekstrak arsip ZIP, file `passwords.txt` otomatis keluar. Peserta kemudian mengekstrak hash PKZIP menggunakan `zip2john` dan memecahkan password-nya menggunakan **John the Ripper** atau **Hashcat (mode 17210)**.
 
 ---
 
@@ -15,110 +15,110 @@ Tantangan ini menggabungkan teknik **File Carving** dengan **Password Cracking**
 
 ### 1. Ekstraksi File Menggunakan Binwalk
 
-Jalankan perintah binwalk untuk mengekstrak data di balik gambar:
+Jalankan `binwalk` dengan opsi `-e` (*extract*) pada file `evidence.png`:
 
 ```bash
 binwalk -e evidence.png
 ```
 
-Masuk ke folder hasil ekstraksi:
+Masuk ke direktori hasil ekstraksi:
 
 ```bash
 cd _evidence.png.extracted
 ls -la
 ```
 
-Anda akan melihat file arsip zip (misalnya bernama `7CBC.zip` atau `<offset>.zip`).
+Di dalam direktori ini terdapat berkas zip hasil carving (biasanya bernama `79DD.zip` sesuai offset penemuannya).
 
 ---
 
-### 2. Membuka Arsip untuk Mendapatkan `passwords.txt`
+### 2. Mengekstrak Wordlist `passwords.txt`
 
-Ekstrak file zip:
+Jalankan perintah `unzip`:
 
 ```bash
-unzip 7CBC.zip
+unzip *.zip
 ```
+
+Output di terminal:
+```text
+Archive:  79DD.zip
+ extracting: passwords.txt           
+[79DD.zip] flag.txt password:
+```
+
+👉 **Tekan `Ctrl + C`** untuk membatalkan permintaan password `flag.txt`.
+
+Periksa file yang berhasil diekstrak:
+```bash
+ls -l passwords.txt
+wc -l passwords.txt
+```
+Output:
+```text
+1000 passwords.txt
+```
+File `passwords.txt` berisi 1000 kombinasi kata sandi siap pakai sebagai kamus dictionary attack!
+
+---
+
+### 3. Cracking Password
+
+#### Metode A: Menggunakan John the Ripper (Paling Mudah & Cepat di Kali Linux)
+
+1. Ekstrak hash dari file ZIP:
+   ```bash
+   zip2john *.zip > zip.hash
+   ```
+
+2. Jalankan John dengan menyertakan wordlist `passwords.txt`:
+   ```bash
+   john --wordlist=passwords.txt zip.hash
+   ```
 
 Output:
 ```text
-Archive:  7CBC.zip
-  extracting: passwords.txt
-[7CBC.zip] flag.txt password:
+Using default input encoding: UTF-8
+Loaded 1 password hash (PKZIP [32/64])
+Will run 2 OpenMP threads
+cyber_shield_2026 (79DD.zip/flag.txt)     
+1g 0:00:00:00 DONE (2026-10-29 11:55) 25.00g/s 25000p/s 25000c/s 25000C/s
+Session completed.
 ```
 
-Tekan **Ctrl + C** untuk membatalkan prompt password `flag.txt`.  
-Periksa isi direktori:
-```bash
-ls -l
-wc -l passwords.txt
-```
-File `passwords.txt` sudah berhasil diekstrak dan berisi **1000 baris password**.
+Password berhasil dipecahkan:  
+🔑 **`cyber_shield_2026`**
 
 ---
 
-### 3. Cracking Password Menggunakan Hashcat (Metode Utama)
+#### Metode B: Menggunakan Hashcat (Mode 17210 - PKZIP Uncompressed)
 
-#### Langkah 3A: Ekstrak Hash ZIP
-Gunakan utility `zip2john` (sudah bawaan Kali Linux):
+Jika ingin menggunakan Hashcat, gunakan mode **`-m 17210`** (bukan 17200, karena file disimpan tanpa kompresi deflated):
 
-```bash
-zip2john 7CBC.zip > zip.hash
-```
+1. Ambil baris hash PKZIP:
+   ```bash
+   zip2john *.zip > zip.hash
+   grep -o '\$pkzip\$.*\$/pkzip\$' zip.hash > hash.txt
+   ```
 
-#### Langkah 3B: Ambil Hash untuk Hashcat
-Filter string hash PKZIP (`$pkzip$...$/pkzip$`):
+2. Jalankan Hashcat:
+   ```bash
+   hashcat -m 17210 -a 0 hash.txt passwords.txt --force
+   ```
 
-```bash
-grep -o '\$pkzip\$.*\$/pkzip\$' zip.hash > hash_cat.txt
-```
-
-#### Langkah 3C: Jalankan Hashcat
-Gunakan mode **`-m 17200`** (PKZIP Compressed) atau **`-m 17210`** (PKZIP Uncompressed):
-
-```bash
-hashcat -m 17200 -a 0 hash_cat.txt passwords.txt
-```
-
-> **Tips:** Jika dijalankan di Virtual Machine (VM) tanpa GPU dedicated, tambahkan flag `--force`:
-> ```bash
-> hashcat -m 17200 -a 0 hash_cat.txt passwords.txt --force
-> ```
-
-Hashcat akan menemukan password dalam hitungan detik:
+Output:
 ```text
 $pkzip$1*1*2*0*...*$/pkzip$:cyber_shield_2026
 
 Status...........: Cracked
 ```
 
-Kata sandi yang ditemukan:  
-🔑 **`cyber_shield_2026`**
-
 ---
 
-### 4. Alternatif: Cracking Menggunakan John the Ripper
-
-Jika lebih menyukai John:
+#### Metode C: Menggunakan `fcrackzip` (Alternatif CLI Cepat)
 
 ```bash
-zip2john 7CBC.zip > zip.hash
-john --wordlist=passwords.txt zip.hash
-```
-
-Output:
-```text
-Loaded 1 password hash (PKZIP [32/64])
-cyber_shield_2026 (7CBC.zip/flag.txt)
-1g 0:00:00:00 DONE 2/3 (2026-10-29 18:45) 100.0g/s 100000p/s 100000c/s
-```
-
----
-
-### 5. Alternatif Cepat: Menggunakan `fcrackzip`
-
-```bash
-fcrackzip -u -D -p passwords.txt 7CBC.zip
+fcrackzip -u -D -p passwords.txt *.zip
 ```
 
 Output:
@@ -128,12 +128,18 @@ PASSWORD FOUND!!!!: pw == cyber_shield_2026
 
 ---
 
-### 6. Membuka `flag.txt`
+### 4. Membuka `flag.txt`
 
-Gunakan kata sandi yang ditemukan (`cyber_shield_2026`):
+Setelah menemukan kata sandinya (`cyber_shield_2026`), ekstrak `flag.txt`:
 
 ```bash
-unzip -P cyber_shield_2026 7CBC.zip
+unzip -P cyber_shield_2026 *.zip
+```
+
+*(Jika muncul konfirmasi `replace passwords.txt?`, pilih `n` atau `no`)*
+
+Tampilkan isi flag:
+```bash
 cat flag.txt
 ```
 
@@ -144,9 +150,9 @@ NFXCTF{h4shc4t_cr4ck1ng_z1p_succ3ssfu11y}
 
 ---
 
-### 7. Verifikasi via Script Python Solver
+### 5. Verifikasi via Script Python Solver
 
-Anda juga dapat menjalankan solver otomatis panitia:
+Panitia juga dapat menjalankan solver otomatis bawaan:
 
 ```bash
 python3 solve.py
