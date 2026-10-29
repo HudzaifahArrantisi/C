@@ -1,6 +1,7 @@
 import struct
 import zlib
 import time
+import random
 
 def make_chunk(chunk_type: bytes, data: bytes) -> bytes:
     """Membuat chunk PNG standar: [Length: 4B][Type: 4B][Data][CRC32: 4B]"""
@@ -35,83 +36,147 @@ class ZipCrypto:
         self.update_keys(char)
         return c
 
-def create_encrypted_zip(filename_in_zip: str, file_data: bytes, password: str) -> bytes:
-    cipher = ZipCrypto(password.encode("ascii"))
-    file_crc = zlib.crc32(file_data) & 0xFFFFFFFF
+def create_multi_entry_zip(entries: list) -> bytes:
+    """
+    Membuat file ZIP standar dengan multiple entries.
+    entries: list of dict(name=str, data=bytes, password=str/None)
+    Jika password=None, file tidak dienkripsi (bisa di-unzip tanpa password).
+    Jika password diberikan, file dienkripsi menggunakan ZipCrypto standar.
+    """
+    local_headers_and_data = []
+    central_directory_entries = []
+    current_offset = 0
 
-    # 12-byte header ZipCrypto (11 bytes dummy + 1 byte verification dari CRC32 high byte)
-    dummy_header = bytes([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, (file_crc >> 24) & 0xFF])
-    encrypted_header = bytes([cipher.encrypt_byte(b) for b in dummy_header])
-    encrypted_data = bytes([cipher.encrypt_byte(b) for b in file_data])
+    for item in entries:
+        filename = item["name"]
+        file_data = item["data"]
+        password = item.get("password")
 
-    full_encrypted = encrypted_header + encrypted_data
-    compressed_size = len(full_encrypted)
-    uncompressed_size = len(file_data)
+        file_crc = zlib.crc32(file_data) & 0xFFFFFFFF
+        fname_bytes = filename.encode("ascii")
 
-    fname_bytes = filename_in_zip.encode("ascii")
+        if password:
+            # File terenkripsi ZipCrypto
+            cipher = ZipCrypto(password.encode("ascii"))
+            dummy_header = bytes([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, (file_crc >> 24) & 0xFF])
+            encrypted_header = bytes([cipher.encrypt_byte(b) for b in dummy_header])
+            encrypted_data = bytes([cipher.encrypt_byte(b) for b in file_data])
+            payload = encrypted_header + encrypted_data
+            flags = 1  # Bit 0 = Encrypted
+            compressed_size = len(payload)
+        else:
+            # File uncompressed / plaintext (tidak berpassword)
+            payload = file_data
+            flags = 0  # Bit 0 = Not encrypted
+            compressed_size = len(file_data)
 
-    # Local file header
-    local_header = struct.pack(
-        "<IHHHHHIIIHH",
-        0x04034B50,  # Signature
-        20,          # Version needed
-        1,           # Flags: Bit 0 = Encrypted
-        0,           # Compression: 0 (Stored)
-        0x4B21,      # Mod time (dummy)
-        0x56DC,      # Mod date (dummy)
-        file_crc,    # CRC32
-        compressed_size,
-        uncompressed_size,
-        len(fname_bytes),
-        0            # Extra field len
-    ) + fname_bytes + full_encrypted
+        uncompressed_size = len(file_data)
 
-    # Central Directory
-    central_dir = struct.pack(
-        "<IHHHHHHIIIHHHHHII",
-        0x02014B50,  # Signature
-        20,          # Version made by
-        20,          # Version needed
-        1,           # Flags: Encrypted
-        0,           # Compression: Stored
-        0x4B21,
-        0x56DC,
-        file_crc,
-        compressed_size,
-        uncompressed_size,
-        len(fname_bytes),
-        0,           # Extra field len
-        0,           # Comment len
-        0,           # Disk start
-        0,           # Internal attrs
-        0x81A40000,  # External attrs (-rw-r--r--)
-        0            # Offset of local header
-    ) + fname_bytes
+        # Local File Header
+        local_hdr = struct.pack(
+            "<IHHHHHIIIHH",
+            0x04034B50,        # Signature
+            20,                # Version needed (2.0)
+            flags,             # Bit flags
+            0,                 # Compression: Stored (0)
+            0x4B21,            # Mod time
+            0x56DC,            # Mod date
+            file_crc,          # CRC32
+            compressed_size,
+            uncompressed_size,
+            len(fname_bytes),
+            0                  # Extra field length
+        ) + fname_bytes + payload
+
+        local_headers_and_data.append(local_hdr)
+
+        # Central Directory Header
+        cd_entry = struct.pack(
+            "<IHHHHHHIIIHHHHHII",
+            0x02014B50,        # Signature
+            20,                # Version made by
+            20,                # Version needed
+            flags,             # Flags
+            0,                 # Compression
+            0x4B21,
+            0x56DC,
+            file_crc,
+            compressed_size,
+            uncompressed_size,
+            len(fname_bytes),
+            0,                 # Extra field length
+            0,                 # Comment length
+            0,                 # Disk start
+            0,                 # Internal attrs
+            0x81A40000,        # External attrs (-rw-r--r--)
+            current_offset     # Offset of local header
+        ) + fname_bytes
+
+        central_directory_entries.append(cd_entry)
+        current_offset += len(local_hdr)
+
+    all_local = b"".join(local_headers_and_data)
+    all_cd = b"".join(central_directory_entries)
 
     # End of Central Directory (EOCD)
     eocd = struct.pack(
         "<IHHHHIIH",
-        0x06054B50,  # Signature
-        0, 0,        # Disk numbers
-        1, 1,        # Entry counts
-        len(central_dir),
-        len(local_header),
-        0            # Comment len
+        0x06054B50,
+        0, 0,
+        len(entries), len(entries),
+        len(all_cd),
+        len(all_local),
+        0
     )
 
-    return local_header + central_dir + eocd
+    return all_local + all_cd + eocd
+
+def generate_1000_passwords(target_password: str) -> str:
+    """Membuat 1000 kata sandi realistis yang memuat target_password di dalamnya."""
+    random.seed(20261029)
+    bases = [
+        "shadow", "hunter", "cipher", "phantom", "dragon", "falcon", "matrix",
+        "cyber", "phoenix", "crypto", "viper", "delta", "knight", "ranger",
+        "storm", "blaze", "ghost", "stealth", "sentinel", "vector", "bastion",
+        "quantum", "nexus", "omega", "titan", "hydra", "vortex", "pulse"
+    ]
+    connectors = ["_", "-", ".", ""]
+    numbers = ["123", "2024", "2025", "2026", "77", "99", "007", "42", "88", "101", "360", "777"]
+    words = ["sec", "pass", "access", "root", "corp", "lab", "key", "admin", "core", "shield"]
+
+    wordlist = set()
+    while len(wordlist) < 999:
+        b = random.choice(bases)
+        c = random.choice(connectors)
+        w = random.choice(words)
+        n = random.choice(numbers)
+        choice = random.randint(1, 4)
+        if choice == 1:
+            pwd = f"{b}{c}{w}{n}"
+        elif choice == 2:
+            pwd = f"{b}{c}{n}"
+        elif choice == 3:
+            pwd = f"{w}{c}{b}_{n}"
+        else:
+            pwd = f"{b}_{w}"
+        if pwd != target_password:
+            wordlist.add(pwd)
+
+    # Masukkan target_password di posisi acak yang deterministik
+    full_list = list(wordlist)
+    insert_pos = 428  # Posisi acak di tengah-tengah
+    full_list.insert(insert_pos, target_password)
+
+    return "\n".join(full_list) + "\n"
 
 # ==========================================
-# Generator Gambar PNG dengan LSB + Carving
+# Generator Gambar Challenge (PNG + ZIP + Wordlist)
 # ==========================================
 def create_challenge_image(filename: str = "evidence.png"):
     width = 600
     height = 300
-    flag = "NFXCTF{c4rv1ng_4nd_l5b_st3g4n0_m4st3r}"
-    zip_password = "p1x3l_d1g1t4l_f0r3ns1cs"
-
-    # Pesan yang disembunyikan di LSB pixel
-    lsb_secret = f"HINT: The carved archive password is '{zip_password}'\n".encode("utf-8")
+    flag = "NFXCTF{h4shc4t_cr4ck1ng_z1p_succ3ssfu11y}"
+    target_password = "cyber_shield_2026"
 
     # 1. Signature PNG resmi (8 bytes)
     png_signature = b"\x89PNG\r\n\x1a\n"
@@ -120,12 +185,11 @@ def create_challenge_image(filename: str = "evidence.png"):
     ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     ihdr_chunk = make_chunk(b"IHDR", ihdr_data)
 
-    # 3. tEXt Chunks (Metadata pengecoh - TIDAK ADA FLAG DI SINI!)
+    # 3. tEXt Chunks (Metadata pengecoh - bersih dari flag)
     metadata = {
-        "Title": "Security Incident Report #4029 - Image Asset",
-        "Author": "DFIR Team Alpha",
-        "Software": "GIMP 2.10.34",
-        "Notice": "Confidential investigative material. Cleared for internal case review."
+        "Title": "Investigative Evidence Asset #4029",
+        "Author": "DFIR Incident Handler",
+        "Software": "SecureCam OS v4.2"
     }
 
     text_chunks = b""
@@ -142,53 +206,49 @@ def create_challenge_image(filename: str = "evidence.png"):
             g = int(24 + (50 * y / height))
             b = int(60 + (110 * (x + y) / (width + height)))
             line.extend([r, g, b])
-        raw_scanlines.append(line)
+        raw_scanlines.append(bytes(line))
 
-    # 5. Embed LSB Steganography ke channel RGB (Metode b1,rgb,lsb,xy sesuai standar zsteg)
-    bit_stream = []
-    for byte in lsb_secret:
-        for bit_idx in range(8):
-            bit_stream.append((byte >> bit_idx) & 1)
-
-    bit_pos = 0
-    total_bits = len(bit_stream)
-
-    for y in range(height):
-        # Scanline index: line[0] adalah filter byte, data piksel mulai dari line[1]
-        line = raw_scanlines[y]
-        for i in range(1, len(line)):
-            if bit_pos < total_bits:
-                # Modifikasi bit paling rendah (LSB)
-                line[i] = (line[i] & 0xFE) | bit_stream[bit_pos]
-                bit_pos += 1
-            else:
-                break
-        if bit_pos >= total_bits:
-            break
-
-    # 6. IDAT Chunk (Kompresi data piksel dengan zlib)
-    flattened_pixels = b"".join([bytes(l) for l in raw_scanlines])
+    flattened_pixels = b"".join(raw_scanlines)
     compressed_pixels = zlib.compress(flattened_pixels, level=9)
     idat_chunk = make_chunk(b"IDAT", compressed_pixels)
 
-    # 7. IEND Chunk
+    # 5. IEND Chunk
     iend_chunk = make_chunk(b"IEND", b"")
 
-    # 8. Trailing Bytes: Buat ZIP file berpassword yang memuat flag.txt
-    encrypted_zip_data = create_encrypted_zip("flag.txt", flag.encode("utf-8") + b"\n", zip_password)
+    # 6. Buat wordlist 1000 password yang memuat target_password
+    passwords_text = generate_1000_passwords(target_password)
 
-    # Gabungkan semua komponen: PNG Image + Hidden Encrypted ZIP di akhir file
-    full_payload = png_signature + ihdr_chunk + text_chunks + idat_chunk + iend_chunk + encrypted_zip_data
+    # 7. Buat arsip ZIP tersembunyi yang berisi:
+    #    - passwords.txt (UNENCRYPTED -> otomatis keluar saat binwalk/unzip)
+    #    - flag.txt      (ENCRYPTED   -> meminta password)
+    zip_entries = [
+        {
+            "name": "passwords.txt",
+            "data": passwords_text.encode("utf-8"),
+            "password": None  # Tidak dienkripsi!
+        },
+        {
+            "name": "flag.txt",
+            "data": (flag + "\n").encode("utf-8"),
+            "password": target_password  # Terenkripsi dengan target_password
+        }
+    ]
+
+    hidden_zip_data = create_multi_entry_zip(zip_entries)
+
+    # Gabungkan PNG + Hidden ZIP pada trailing bytes
+    full_payload = png_signature + ihdr_chunk + text_chunks + idat_chunk + iend_chunk + hidden_zip_data
 
     with open(filename, "wb") as f:
         f.write(full_payload)
 
     print(f"[+] Berhasil membuat gambar challenge: '{filename}'")
-    print(f"[+] Ukuran file: {len(full_payload)} bytes")
-    print(f"[+] Metadata EXIF/tEXt : Bersih (Tidak ada flag/password)")
-    print(f"[+] LSB Secret         : {lsb_secret.strip().decode()}")
-    print(f"[+] ZIP Password       : {zip_password}")
-    print(f"[+] Flag di flag.txt   : {flag}")
+    print(f"[+] Ukuran total file: {len(full_payload)} bytes")
+    print(f"[+] Hidden ZIP berisi 2 file:")
+    print(f"    1. passwords.txt (1000 kombinasi kata sandi, tidak berpassword)")
+    print(f"    2. flag.txt (Terenkripsi)")
+    print(f"[+] Password benar: {target_password}")
+    print(f"[+] Flag: {flag}")
 
 if __name__ == "__main__":
     create_challenge_image("evidence.png")
