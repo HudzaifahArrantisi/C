@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 *.pyc
 
-# Author / internal challenge generator & solver scripts (Case-insensitive & all variations)
+# Author / internal challenge generator & solver scripts
 **/generate.py
 **/generate*.py
 **/solve.py
@@ -25,3 +25,4 @@ cleanup.py
 hash.txt
 hash_cat.txt
 zip.hash
+ct.txt
