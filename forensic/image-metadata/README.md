@@ -18,18 +18,8 @@ Gunakan keahlian forensik dan teknik password cracking (menggunakan **Hashcat** 
 
 - `evidence.png` (Dapat diunduh oleh peserta)
 
-> **Catatan Author/Panitia:** Jalankan perintah berikut untuk menghasilkan berkas soal:
-> ```bash
-> python generate.py
-> ```
-
 ## Hint Bertingkat
 
 1. **Hint 1:** Periksa bagian *trailing bytes* dari `evidence.png` menggunakan tool file carving seperti `binwalk` (`binwalk -e evidence.png`).
 2. **Hint 2:** Di dalam folder hasil ekstraksi, Anda akan menemukan file arsip `.zip`. Saat diekstrak, file `passwords.txt` dapat dibuka tanpa password.
-3. **Hint 3:** Ekstrak hash dari file zip menggunakan `zip2john <nama_file.zip> > zip.hash`, kemudian gunakan **Hashcat** (mode `-m 17200`) atau **John the Ripper** bersama daftar kata sandi `passwords.txt`.
-
-## Catatan Distribusi
-
-* Panitia **hanya membagikan** file `README.md` dan file `evidence.png` kepada peserta.
-* File `generate.py`, `solve.py`, dan `SOLVE.md` adalah dokumen internal panitia.
+3. **Hint 3:** Ekstrak hash dari file zip menggunakan `zip2john <nama_file.zip> > zip.hash`, kemudian gunakan **Hashcat** (mode `-m 17210`) atau **John the Ripper** bersama daftar kata sandi `passwords.txt`.

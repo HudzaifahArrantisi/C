@@ -4,13 +4,19 @@ __pycache__/
 *$py.class
 *.pyc
 
-# Author / internal challenge generator & solver scripts
+# Author / internal challenge generator & solver scripts (Case-insensitive & all variations)
 **/generate.py
+**/generate*.py
 **/solve.py
+**/solve*.py
 **/SOLVE.md
-solve.py
+**/solve.md
+**/SOLVE*.md
 generate.py
+solve.py
 SOLVE.md
+solve.md
+cleanup.py
 
 # Binwalk extraction directories & temporary cracking artifacts
 *_extracted/

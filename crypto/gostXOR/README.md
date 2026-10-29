@@ -23,12 +23,8 @@ python chall.py
 
 ## Hint
 
-Gunakan hint secara berurutan jika kamu buntu.
+Gunakan hint secara berurutan jika kamu buntu:
 
 1. XOR dapat dibalik dengan operasi XOR yang sama: `ciphertext XOR plaintext = key`.
 2. Kamu sudah mengetahui beberapa karakter plaintext karena setiap flag diawali dengan `NFXCTF{`.
 3. XOR empat byte pertama ciphertext dengan `NFXC` untuk mendapatkan kunci empat karakter.
-
-## Catatan panitia
-
-Bagikan hanya `README.md` dan `chall.py` kepada peserta. `SOLVE.md` dan `solve.py` berisi solusi resmi.
