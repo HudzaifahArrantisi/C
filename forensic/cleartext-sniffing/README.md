@@ -1,30 +1,37 @@
-# Cleartext Sniffing
+# Paket Tanpa Amplop
 
-Kategori: Digital Forensics  
-Kesulitan: Easy  
-Nilai yang disarankan: 100 poin  
-Format flag: `NFXCTF{...}`
+- Kategori: Digital Forensics, Network Analysis
+- Kesulitan: Easy / Warmup
+- Topik: Cleartext Sniffing
+- Format flag: `NFXCTF{...}`
+- Nilai yang disarankan: 100 poin
 
-## Deskripsi
+## Deskripsi soal
 
-Tim Incident Response mendeteksi lalu lintas mencurigakan pada segmen jaringan internal kantor. Seorang pengguna dilaporkan mengakses portal web tanpa protokol terenkripsi (HTTPS).
+Pukul 18.05, SOC menerima peringatan dari segmen laboratorium lama. Satu workstation terlihat menghubungi tiga layanan internal yang seharusnya sudah dipensiunkan setelah migrasi. Teknisi jaringan sempat mengambil rekaman dari SPAN port sebelum workstation tersebut dimatikan.
 
-Pihak SOC berhasil menangkap berkas paket jaringan (`traffic.pcap`). Analisis berkas rekaman jaringan tersebut dan temukan informasi kredensial atau flag rahasia yang terkirim di dalamnya!
+Tim menduga sebuah token rahasia ikut terkirim tanpa perlindungan enkripsi. Periksa `traffic.pcap`, ikuti percakapan yang relevan, lalu temukan token tersebut.
 
-## File peserta
+## Berkas peserta
 
-- `traffic.pcap` (Dapat diunduh oleh peserta)
+- `traffic.pcap`
 
-> **Catatan untuk pembuat soal:** Jalankan `python generate.py` untuk meng-generate berkas `traffic.pcap` jika belum dibuat.
+## Hint bertingkat
 
-## Hint
+Buka hint secara berurutan. Setiap hint mengurangi ruang pencarian.
 
-Gunakan hint secara berurutan jika kamu buntu:
+1. Tidak semua protokol melindungi isi paket. Cari percakapan yang masih dapat dibaca sebagai teks biasa.
+2. Rekaman memuat HTTP, FTP, dan Telnet. Periksa data autentikasi pada salah satu protokol tersebut.
+3. Di Wireshark, gunakan filter `ftp.request.command == "PASS"`, lalu pilih paket hasilnya dan buka **Follow > TCP Stream**.
 
-1. Buka file `.pcap` menggunakan tool penganalisis paket seperti **Wireshark** atau **NetworkMiner**.
-2. Fokus pada protokol yang mengirimkan data tanpa enkripsi, seperti protokol **HTTP**.
-3. Gunakan filter display `http.request.method == "POST"` atau klik kanan salah satu paket HTTP lalu pilih **Follow -> TCP Stream**.
+## Catatan distribusi
 
-## Catatan panitia
+Panitia membagikan `README.md` dan `traffic.pcap` kepada peserta. Simpan `generate.py`, `solve.py`, dan `SOLVE.md` sebagai berkas internal panitia.
 
-Bagikan hanya file `README.md` dan `traffic.pcap` kepada peserta. File `SOLVE.md`, `generate.py`, dan `solve.py` adalah arsip panitia.
+Untuk membuat ulang artefak challenge:
+
+```bash
+python generate.py
+```
+
+Generator dan solver hanya memakai Python Standard Library. Tidak ada paket tambahan yang perlu dipasang.

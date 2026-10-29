@@ -1,63 +1,111 @@
-# Solusi Resmi: Cleartext Sniffing
+# Solusi Resmi: Paket Tanpa Amplop
 
-## Analisis Masalah
+## Ringkasan
 
-Tantangan ini memberikan sebuah file rekaman jaringan berformat `.pcap`. Skenario menyebutkan adanya akses portal internal yang tidak terenkripsi, yang mengindikasikan protokol berbasis teks polos seperti HTTP, Telnet, atau FTP.
+Workstation `192.168.56.23` membuka tiga koneksi teks polos:
 
-## Metode Penyelesaian
+- HTTP ke `192.168.56.10:80`
+- FTP ke `192.168.56.30:21`
+- Telnet ke `192.168.56.40:23`
 
-### Cara 1: Menggunakan Wireshark (GUI)
+Flag berada pada argumen perintah `PASS` di sesi FTP. Karena FTP control channel tidak memakai enkripsi, Wireshark dapat menampilkan nilai tersebut langsung dari payload TCP.
 
-1. Buka file `traffic.pcap` di **Wireshark**.
-2. Masukkan filter protokol pada kolom display filter:
+## Penyelesaian dengan Wireshark
+
+1. Buka `traffic.pcap` melalui **File > Open**.
+2. Mulai dengan filter berikut untuk melihat tiga protokol teks polos:
+
    ```text
-   http
+   http || ftp || telnet
    ```
-   atau lebih spesifik:
+
+3. Persempit hasil ke request autentikasi FTP:
+
    ```text
-   http.request.method == "POST"
+   ftp.request.command == "PASS"
    ```
-3. Perhatikan paket request HTTP POST ke `/auth`.
-4. Periksa bagian **HTML Form URL Encoded** pada panel *Packet Details*:
+
+4. Pilih paket `PASS`. Panel **Packet Details** menampilkan bagian **File Transfer Protocol (FTP)** dengan request command `PASS` dan argumen berupa flag.
+5. Klik kanan paket tersebut, lalu pilih **Follow > TCP Stream**. Gunakan tampilan **ASCII**. Percakapan berikut terlihat pada stream:
+
    ```text
-   username = admin
-   password = NFXCTF{un3ncrypt3d_tr4ff1c_1s_d4ng3r0us}
+   220 filesrv.nfx.local FTP server ready
+   USER backup
+   331 Password required for backup
+   PASS NFXCTF{cl34rt3xt_pr0t0c0ls_l34k_s3cr3ts}
+   230 User backup logged in
    ```
-5. Alternatif cepat: Klik kanan paket nomor berapa saja yang bertipe TCP/HTTP, pilih **Follow** -> **TCP Stream**. Di dalam percakapan stream lengkap akan terlihat form login dengan flag tersebut.
 
----
+6. Ambil teks yang mengikuti `PASS` dan cocok dengan format flag.
 
-### Cara 2: Menggunakan CLI (`strings` / `grep`)
+Filter alternatif untuk mencari pola flag langsung pada payload TCP:
 
-Karena flag tersimpan dalam format teks polos (ASCII) di dalam payload paket TCP:
+```text
+tcp contains "NFXCTF{"
+```
+
+## Penyelesaian melalui CLI
+
+### strings dan grep
+
+Pada Linux, GNU strings dapat mengambil rangkaian ASCII dari PCAP:
 
 ```bash
-strings traffic.pcap | grep -E "NFXCTF\{.*?\}"
+strings -a traffic.pcap | grep -oE 'NFXCTF\{[A-Za-z0-9_]+\}'
 ```
 
 Output:
+
 ```text
-username=admin&password=NFXCTF{un3ncrypt3d_tr4ff1c_1s_d4ng3r0us}&remember_me=1
+NFXCTF{cl34rt3xt_pr0t0c0ls_l34k_s3cr3ts}
 ```
 
----
+PowerShell dapat memakai solver Python yang disertakan, atau `strings.exe` dari Sysinternals jika tersedia.
 
-### Cara 3: Menggunakan Python Script
+### tshark
 
-Jalankan `solve.py`:
+Tampilkan seluruh request FTP:
 
 ```bash
-python solve.py
+tshark -r traffic.pcap -Y ftp.request -T fields -e ip.src -e ftp.request.command -e ftp.request.arg
 ```
 
-Output:
+Tampilkan hanya argumen `PASS`:
+
+```bash
+tshark -r traffic.pcap -Y 'ftp.request.command == "PASS"' -T fields -e ftp.request.arg
+```
+
+Alternatif yang tidak bergantung pada dissector FTP:
+
+```bash
+tshark -r traffic.pcap -Y 'tcp contains "NFXCTF{"' -T fields -e tcp.payload
+```
+
+Perintah terakhir menghasilkan payload dalam bentuk heksadesimal. Gunakan filter FTP jika ingin output yang langsung terbaca.
+
+## Solver otomatis
+
+Jalankan:
+
+```bash
+python solve.py traffic.pcap
+```
+
+Solver membaca header PCAP, mengekstrak Ethernet/IPv4/TCP, mengelompokkan payload berdasarkan arah koneksi, lalu menyusunnya berdasarkan TCP sequence number. Solver tidak memerlukan Scapy.
+
+Output yang diharapkan:
+
 ```text
-[*] Membaca file: traffic.pcap
-[+] Flag ditemukan: NFXCTF{un3ncrypt3d_tr4ff1c_1s_d4ng3r0us}
+Flag: NFXCTF{cl34rt3xt_pr0t0c0ls_l34k_s3cr3ts} (192.168.56.23:51522 -> 192.168.56.30:21)
 ```
 
 ## Flag
 
 ```text
-NFXCTF{un3ncrypt3d_tr4ff1c_1s_d4ng3r0us}
+NFXCTF{cl34rt3xt_pr0t0c0ls_l34k_s3cr3ts}
 ```
+
+## Catatan author
+
+`generate.py` menghasilkan PCAP deterministik agar distribusi challenge dapat direproduksi. Semua sesi memiliki TCP three-way handshake, acknowledgment untuk setiap payload, dan four-segment connection teardown. HTTP berfungsi sebagai aktivitas browsing biasa, sedangkan Telnet memberi contoh kedua bahwa kredensial teks polos dapat dibaca tanpa dekripsi.
