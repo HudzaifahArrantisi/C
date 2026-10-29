@@ -1,18 +1,20 @@
-# Jejak Tak Kasat Mata (Hidden in The Pixels)
+# Shadow Pixel (Piksel Bayangan)
 
-- Kategori: Digital Forensics, Image & Metadata Analysis
-- Kesulitan: Easy
-- Topik: PNG Metadata & Chunks Analysis (tEXt Chunks)
+- Kategori: Digital Forensics & Steganography
+- Kesulitan: Medium
+- Topik: File Carving & LSB Steganography
 - Format flag: `NFXCTF{...}`
-- Nilai yang disarankan: 100 poin
+- Nilai yang disarankan: 250 - 300 poin
 
 ## Deskripsi Soal
 
-Sebuah flashdisk milik informan rahasia ditemukan di lokasi kejadian perkara. Di dalamnya hanya terdapat satu file gambar pemandangan digital bernama `evidence.png`. 
+Tim DFIR (Digital Forensics and Incident Response) menyita sebuah gambar bukti dari laptop seorang pelaku spionase industri bernama `evidence.png`. 
 
-Tim digital forensik meyakini bahwa gambar tersebut tidak sekadar file grafis biasa, melainkan media penyampaian pesan rahasia yang disisipkan sebelum informan tersebut menghilang. 
+Pelaku mengklaim bahwa file tersebut hanyalah gambar aset biasa yang bersih. Analis awal yang hanya memeriksa metadata menggunakan `exiftool` dan mencari teks dengan `strings` tidak menemukan kejanggalan apa pun.
 
-Bantu penyidik memeriksa artefak file `evidence.png` dan temukan pesan tersembunyi (flag) di dalamnya!
+Namun, tim intelijen meyakini ada dokumen rahasia penting yang disembunyikan di dalam struktur internal berkas gambar tersebut melalui teknik berlapis. 
+
+Bantu tim investigasi menggali lebih dalam dari sekadar metadata dan temukan flag yang tersembunyi!
 
 ## Berkas Peserta
 
@@ -25,11 +27,11 @@ Bantu penyidik memeriksa artefak file `evidence.png` dan temukan pesan tersembun
 
 ## Hint Bertingkat
 
-Gunakan hint secara berurutan apabila mengalami kesulitan:
+Gunakan hint secara berurutan jika peserta mengalami kebuntuan:
 
-1. Sebuah file gambar menyimpan informasi lebih dari sekadar piksel warna. Periksa informasi metadata yang melekat pada file tersebut.
-2. File PNG menyimpan informasi teks di dalam struktur blok yang disebut **tEXt chunks** (Textual Data Chunks).
-3. Anda dapat menggunakan tool CLI seperti `exiftool evidence.png`, utility `strings`, atau tool analisis gambar seperti `zsteg` / website metadata viewer online.
+1. **Hint 1:** Jangan hanya mengandalkan `exiftool` atau `strings`. Metadata gambar telah dibersihkan oleh pelaku. Analisis struktur berkas gambar dan data pikselnya.
+2. **Hint 2:** Gunakan teknik **File Carving** menggunakan tool seperti `binwalk` atau `foremost` untuk melihat apakah ada berkas arsip yang disisipkan di luar batas normal gambar (*trailing bytes*).
+3. **Hint 3:** Jika arsip hasil ekstraksi meminta kata sandi (password), periksa nilai bit terkecil (**LSB / Least Significant Bit**) dari saluran warna RGB pada gambar tersebut menggunakan tool seperti `zsteg` atau `stegsolve`.
 
 ## Catatan Distribusi
 
