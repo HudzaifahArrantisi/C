@@ -1,23 +1,39 @@
-# Paket Tanpa Amplop
+# Paket Tanpa Amplop (Cleartext Sniffing)
 
-- Kategori: Digital Forensics, Network Analysis
-- Kesulitan: Easy / Warmup
-- Topik: Cleartext Sniffing
-- Format flag: `NFXCTF{...}`
-- Nilai yang disarankan: 100 poin
+- **Kategori:** Digital Forensics
+- **Kesulitan:** Easy / Warmup
+- **Topik:** Network Traffic Analysis, Cleartext Protocol Sniffing (FTP/Telnet/HTTP)
+- **Format Flag:** `NFXCTF{...}`
+- **Nilai yang Disarankan:** 100 poin
 
-## Deskripsi Soal
+---
 
-Pukul 18.05, SOC menerima peringatan dari segmen laboratorium lama. Satu workstation terlihat menghubungi tiga layanan internal yang seharusnya sudah dipensiunkan setelah migrasi. Teknisi jaringan sempat mengambil rekaman dari SPAN port sebelum workstation tersebut dimatikan.
+## 📋 Pertanyaan Soal (Deskripsi untuk Web / Platform CTF)
 
-Tim menduga sebuah token rahasia ikut terkirim tanpa perlindungan enkripsi. Periksa `traffic.pcap`, ikuti percakapan yang relevan, lalu temukan token tersebut!
+> *Salin teks di bawah ini ke form deskripsi soal pada platform CTF (CTFd/lainnya):*
 
-## Berkas Peserta
+```markdown
+### Deskripsi Soal
 
-- `traffic.pcap` (Dapat diunduh oleh peserta)
+Pukul 18.05 WIB, sistem monitoring SOC membunyikan alarm anomali dari segmen jaringan laboratorium lama. Sebuah workstation mencurigakan terdeteksi aktif menghubungi beberapa server internal lama yang seharusnya telah dipensiunkan pasca migrasi sistem.
 
-## Hint Bertingkat
+Sebelum workstation tersebut dimatikan secara paksa, analis jaringan sempat menyalakan port mirroring (SPAN port) dan merekam seluruh lalu lintas paket data ke dalam berkas `traffic.pcap`.
 
-1. Tidak semua protokol melindungi isi paket. Cari percakapan yang masih dapat dibaca sebagai teks biasa.
-2. Rekaman memuat HTTP, FTP, dan Telnet. Periksa data autentikasi pada salah satu protokol tersebut.
-3. Di Wireshark, gunakan filter `ftp.request.command == "PASS"`, lalu pilih paket hasilnya dan buka **Follow > TCP Stream**.
+Tim investigasi menduga terdapat token autentikasi penting yang bocor akibat penggunaan protokol lama yang tidak dilengkapi enkripsi. Bantulah tim penyelidik menganalisis rekaman paket jaringan tersebut, telusuri percakapan data yang terjadi, dan temukan token rahasia (flag) yang bocor!
+
+**Format Flag:** `NFXCTF{...}`
+```
+
+---
+
+## 📎 Berkas Lampiran Peserta
+
+- [`traffic.pcap`](traffic.pcap)
+
+---
+
+## 💡 Hint Bertingkat (Untuk Platform CTF)
+
+1. **Hint 1:** Tidak semua protokol jaringan membungkus data dengan lapisan enkripsi. Carilah percakapan protokol teks polos (*plaintext*) yang datanya dapat dibaca langsung.
+2. **Hint 2:** Rekaman jaringan memuat beberapa sesi: HTTP, FTP, dan Telnet. Periksa proses autentikasi (login/password) pada salah satu protokol tersebut.
+3. **Hint 3:** Di Wireshark, gunakan display filter `ftp.request.command == "PASS"` untuk langsung melompat ke paket pengiriman password, atau klik kanan salah satu paket FTP lalu pilih **Follow > TCP Stream**.
