@@ -19,12 +19,18 @@ CALL_ID = "c1a84d0e-204@pbx.cakrawala.internal"
 BASE_TIME = 1793384280.0  # 2026-10-30 18:18:00 UTC / 2026-10-31 01:18 WIB
 
 LINES = [
-    ("raka", "Din, kamu masih di kantor? Yang map merah itu, jangan dikirim dulu ya. Kita omongin besok."),
-    ("dina", "Besok terus, Rak? Dari tadi kamu bilang gitu. Aku udah baca isinya. Ada tanda tangan kamu di situ."),
-    ("raka", "Ssst. Jangan ngomong keras-keras. Aku ke ruanganmu sekarang."),
-    ("dina", "Raka? Tunggu. Aku taruh kodenya di rekaman ini aja. Buat yang denger, catat ya. "
-     "En ef eks ce te ef, kurung kurawal buka. Arsip, garis bawah, merah, garis bawah, "
-     "dua nol empat, kurung kurawal tutup. Itu kode buktinya. Raka? Jangan masuk..."),
+    ("raka", "Din, kamu tahu kode dokumen itu dari mana? Aku simpan sendiri di laci. "
+     "Kamu buka laci aku?"),
+    ("dina", "Nggak. Salinannya kamu tinggal di printer, Rak. Kodenya masih kelihatan. "
+     "En ef eks ce te ef, kurung kurawal buka, arsip, garis bawah, merah, "
+     "garis bawah, dua nol empat, kurung kurawal tutup. "
+     "Kalau besok pagi kamu nggak jelasin, aku kirim semuanya ke kepala kantor."),
+    ("raka", "Dina, jangan main-main. Hapus salinan itu sekarang."),
+    ("dina", "Nggak. Aku udah simpan salinannya. Kamu kira aku bakal diam aja?"),
+    ("raka", "Dengerin aku. Kalau kamu bocorin kode itu, aku bunuh kamu. "
+     "Aku ke ruang arsip sekarang."),
+    ("dina", "Raka, jangan gila. Kita bisa ngomong baik-baik. "
+     "Halo? Rak? Kamu di depan pintu? Raka, jangan!"),
 ]
 VOICES = {"raka": "id-ID-ArdiNeural", "dina": "id-ID-GadisNeural"}
 
