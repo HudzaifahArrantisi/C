@@ -1,56 +1,42 @@
-"""Build the organizer's SIP/RTP capture. Run on Windows with pywin32 and scapy."""
+"""Build the organizer's SIP/RTP capture from natural Indonesian TTS voices."""
 
 from __future__ import annotations
 
 import audioop
+import asyncio
+import subprocess
 import tempfile
-import wave
 from pathlib import Path
 
-import win32com.client
+import edge_tts
+import imageio_ffmpeg
 from scapy.all import Ether, IP, UDP, Raw, wrpcap
 
 
 HERE = Path(__file__).resolve().parent
 OUTPUT = HERE / "korban.pcap"
-TOKEN = (
-    r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens"
-    r"\MSTTS_V110_idID_Andika"
-)
 CALL_ID = "c1a84d0e-204@pbx.cakrawala.internal"
 BASE_TIME = 1793384280.0  # 2026-10-30 18:18:00 UTC / 2026-10-31 01:18 WIB
 
-SUSPECT = (
-    "Raka: Kamu kira bisa laporkan aku? Jangan sentuh arsip itu. "
-    "Aku ke ruanganmu sekarang."
-)
-VICTIM = (
-    "Dina: Tunggu, Raka! Kalau ada yang mendengar rekaman ini, "
-    "catat kode bukti yang kusembunyikan. "
-    "Flag-nya: en, ef, eks, ce, te, ef. Buka kurung kurawal. "
-    "ARSIP, garis bawah, MERAH, garis bawah, dua, nol, empat. "
-    "Tutup kurung kurawal. Ulangi: arsip merah dua nol empat. "
-    "Dia sudah di depan pintu."
-)
+LINES = [
+    ("raka", "Din, kamu masih di kantor? Yang map merah itu, jangan dikirim dulu ya. Kita omongin besok."),
+    ("dina", "Besok terus, Rak? Dari tadi kamu bilang gitu. Aku udah baca isinya. Ada tanda tangan kamu di situ."),
+    ("raka", "Ssst. Jangan ngomong keras-keras. Aku ke ruanganmu sekarang."),
+    ("dina", "Raka? Tunggu. Aku taruh kodenya di rekaman ini aja. Buat yang denger, catat ya. "
+     "En ef eks ce te ef, kurung kurawal buka. Arsip, garis bawah, merah, garis bawah, "
+     "dua nol empat, kurung kurawal tutup. Itu kode buktinya. Raka? Jangan masuk..."),
+]
+VOICES = {"raka": "id-ID-ArdiNeural", "dina": "id-ID-GadisNeural"}
 
 
-def synthesize(text: str, path: Path, rate: int = 0) -> bytes:
-    voice = win32com.client.Dispatch("SAPI.SpVoice")
-    token = win32com.client.Dispatch("SAPI.SpObjectToken")
-    token.SetId(TOKEN)
-    voice.Voice = token
-    voice.Rate = rate
-    stream = win32com.client.Dispatch("SAPI.SpFileStream")
-    stream.Open(str(path), 3)
-    voice.AudioOutputStream = stream
-    voice.Speak(text)
-    stream.Close()
-    with wave.open(str(path), "rb") as wav:
-        assert wav.getnchannels() == 1 and wav.getsampwidth() == 2
-        pcm = wav.readframes(wav.getnframes())
-        sample_rate = wav.getframerate()
-    pcm_8k, _ = audioop.ratecv(pcm, 2, 1, sample_rate, 8000, None)
-    return audioop.lin2ulaw(pcm_8k, 2)
+def synthesize(text: str, voice: str, path: Path) -> bytes:
+    asyncio.run(edge_tts.Communicate(text, VOICES[voice]).save(str(path)))
+    decoded = subprocess.run(
+        [imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-i", str(path),
+         "-f", "s16le", "-ac", "1", "-ar", "8000", "pipe:1"],
+        check=True, capture_output=True,
+    ).stdout
+    return audioop.lin2ulaw(decoded, 2)
 
 
 def sip_packet(src: str, dst: str, content: str, offset: float) -> Ether:
@@ -93,12 +79,12 @@ def sdp(ip: str, port: int, name: str) -> str:
 
 def rtp_packets(audio: bytes, src_ip: str, dst_ip: str, src_mac: str,
                 dst_mac: str, src_port: int, dst_port: int,
-                ssrc: int, start: float) -> list[Ether]:
+                ssrc: int, start: float, sequence_start: int) -> list[Ether]:
     result = []
     for i in range(0, len(audio), 160):
         frame = audio[i:i + 160].ljust(160, b"\xff")
-        sequence = 3800 + i // 160
-        timestamp = 74000 + i
+        sequence = sequence_start + i // 160
+        timestamp = 74000 + round(start * 8000) + i
         header = bytes([0x80, 0x00]) + sequence.to_bytes(2, "big")
         header += timestamp.to_bytes(4, "big") + ssrc.to_bytes(4, "big")
         packet = Ether(src=src_mac, dst=dst_mac) / IP(
@@ -111,8 +97,10 @@ def rtp_packets(audio: bytes, src_ip: str, dst_ip: str, src_mac: str,
 
 def main() -> None:
     with tempfile.TemporaryDirectory() as temp:
-        suspect = synthesize(SUSPECT, Path(temp) / "raka.wav", rate=-1)
-        victim = synthesize(VICTIM, Path(temp) / "dina.wav", rate=1)
+        audio_lines = [
+            (speaker, synthesize(text, speaker, Path(temp) / f"line-{i}.mp3"))
+            for i, (speaker, text) in enumerate(LINES)
+        ]
 
     mac_a, mac_b = "02:00:00:00:00:31", "02:00:00:00:00:24"
     invite = signal(
@@ -131,16 +119,23 @@ def main() -> None:
         sip_packet(mac_b, mac_a, ok, 0.12),
         sip_packet(mac_a, mac_b, ack, 0.16),
     ]
-    packets.extend(rtp_packets(
-        suspect, "10.24.8.31", "10.24.8.24", mac_a, mac_b,
-        4000, 4002, 0xA2040001, 0.40,
-    ))
-    victim_start = 0.40 + len(suspect) / 8000 + 0.55
-    packets.extend(rtp_packets(
-        victim, "10.24.8.24", "10.24.8.31", mac_b, mac_a,
-        4002, 4000, 0xB2310001, victim_start,
-    ))
-    bye_time = victim_start + len(victim) / 8000 + 0.6
+    elapsed = 0.40
+    next_sequence = {"raka": 3800, "dina": 3800}
+    for speaker, audio in audio_lines:
+        if speaker == "raka":
+            src_ip, dst_ip, src_mac, dst_mac = "10.24.8.31", "10.24.8.24", mac_a, mac_b
+            src_port, dst_port, ssrc = 4000, 4002, 0xA2040001
+        else:
+            src_ip, dst_ip, src_mac, dst_mac = "10.24.8.24", "10.24.8.31", mac_b, mac_a
+            src_port, dst_port, ssrc = 4002, 4000, 0xB2310001
+        frames = rtp_packets(
+            audio, src_ip, dst_ip, src_mac, dst_mac, src_port, dst_port,
+            ssrc, elapsed, next_sequence[speaker],
+        )
+        packets.extend(frames)
+        next_sequence[speaker] += len(frames)
+        elapsed += len(audio) / 8000 + 0.35
+    bye_time = elapsed + 0.3
     bye = signal(
         "BYE sip:231@10.24.8.24:5060 SIP/2.0", "a204", ";tag=b231", "2 BYE"
     )

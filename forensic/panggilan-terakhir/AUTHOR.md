@@ -10,4 +10,4 @@ Ini adalah rekaman VoIP sintetis untuk latihan CTF, bukan rekaman kejadian nyata
 2. Buka **Telephony → RTP → RTP Streams**. Pilih stream `10.24.8.24:4002 → 10.24.8.31:4000` (SSRC `0xb2310001`), lalu buka **Analyze → Play Streams**.
 3. Dina mengeja awalan format flag, lalu mengucapkan “ARSIP, garis bawah, MERAH, garis bawah, dua, nol, empat”. Susun sebagai `NFXCTF{ARSIP_MERAH_204}`.
 
-Flag tidak dimasukkan ke teks SIP atau metadata PCAP. Rekaman audio adalah sumber jawabannya. Untuk membangun ulang berkas di Windows, jalankan `python build_challenge.py`; pembuat memerlukan `pywin32`, `scapy`, dan suara Microsoft Andika yang terpasang di Windows.
+Flag tidak dimasukkan ke teks SIP atau metadata PCAP. Rekaman audio adalah sumber jawabannya. Dialog memakai dua suara neural bahasa Indonesia: Ardi untuk Raka dan Gadis untuk Dina. Untuk membangun ulang berkas, pasang `edge-tts`, `imageio-ffmpeg`, dan `scapy`, pastikan ada koneksi internet untuk sintesis suara, lalu jalankan `python build_challenge.py`.
